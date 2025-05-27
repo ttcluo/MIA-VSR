@@ -27,8 +27,8 @@ datasets:
 
     # data loader
     use_shuffle: true
-    num_worker_per_gpu: 4 # 原6→4，减少CPU争用
-    batch_size_per_gpu: 16  # 原3→16，提升全局批次至128
+    num_worker_per_gpu: 1 # 原6→1，减少CPU争用
+    batch_size_per_gpu: 4  # 原3→4
     dataset_enlarge_ratio: 200
     pin_memory: true # 新增，加速数据加载
     prefetch_mode: cuda # 新增，CUDA预取
