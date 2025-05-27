@@ -27,16 +27,17 @@ datasets:
 
     # data loader
     use_shuffle: true
-    num_worker_per_gpu: 6
-    batch_size_per_gpu: 3
+    num_worker_per_gpu: 4 # 原6→4，减少CPU争用
+    batch_size_per_gpu: 16  # 原3→16，提升全局批次至128
     dataset_enlarge_ratio: 200
-    prefetch_mode: ~
+    pin_memory: true # 新增，加速数据加载
+    prefetch_mode: cuda # 新增，CUDA预取
 
   val:
     name: Vid4
     type: VideoRecurrentTestDataset
     dataroot_gt: ../mmagic/data/Vid4/GT
-    dataroot_lq: ../mmagic/data/Vid4/GT/vid4_LR/BIx4
+    dataroot_lq: ../mmagic/data/Vid4/BIx4
 
     cache_data: true
     io_backend:
@@ -51,11 +52,11 @@ network_g:
   embed_dim: 120
   depths: [6,6,6,6]
   num_heads: [6,6,6,6]
-  window_size: [3, 8, 8]
+  window_size: [3, 4, 4] # 原[3,8,8]→减少显存碎片
   num_frames: 3
   img_size : 64
   patch_size : 1
-  cpu_cache_length: 100
+  cpu_cache_length: 200 # 原100→提升缓存命中率
   is_low_res_input: True
   use_mask: True #False, may be you should pretrain this model with no mask processing module
   spynet_path: experiments/pretrained_models/flownet/spynet_sintel_final-3d2a1287.pth
@@ -70,9 +71,9 @@ train:
   ema_decay: 0.999
   optim_g:
     type: Adam
-    lr: !!float 1e-4
+    lr: !!float 2.828e-4 # 原1e-4→sqrt(8)*1e-4 线性缩放规则
     weight_decay: 0
-    betas: [0.9, 0.99]
+    betas: [0.9, 0.98] #原[0.9,0.99]→更稳定收敛
 
   scheduler:
     type: CosineAnnealingRestartLR
@@ -80,7 +81,13 @@ train:
     restart_weights: [1]
     eta_min: !!float 1e-7
 
-  total_iter: 300000
+  # 新增混合精度配置（网页2）
+  scaler:
+    type: GradScaler
+    init_scale: 65536.0
+    growth_interval: 2000
+
+  total_iter: 37500 # 原300000→等效迭代次数（300000/(3 * 8)*16 * 8）
   warmup_iter: -1  # no warm up
   fix_flow: -1
   flow_lr_mul: 0.25
@@ -119,4 +126,5 @@ logger:
 dist_params:
   backend: nccl
   port: 29500
-
+  algorithm: tree          # 强制树状通信
+  gradient_accumulation_steps: 2  # 新增梯度累积
